@@ -5,34 +5,35 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PYTHONPATH="/app/libs/core:/app/libs/computer:/app/libs/agent:/app/libs/som:/app/libs/pylume:/app/libs/computer-server"
+    PYTHONPATH="/app/libs/core:/app/libs/computer:/app/libs/agent:/app/libs/som:/app/libs/pylume:/app/libs/computer-server:/app/libs/mcp-server"
 
-# Install system dependencies for ARM architecture
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install only essential dependencies first
+RUN apt-get update -o Acquire::AllowInsecureRepositories=true \
+    -o Acquire::AllowDowngradeToInsecureRepositories=true \
+    && apt-get install -y -o APT::Get::AllowUnauthenticated=true \
+    --no-install-recommends \
     git \
-    build-essential \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    libxcb-xinerama0 \
-    libxkbcommon-x11-0 \
-    cmake \
-    pkg-config \
     curl \
-    iputils-ping \
-    net-tools \
-    sed \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
 
-# Copy the entire project temporarily
-# We'll mount the real source code over this at runtime
+# Copy the entire project
 COPY . /app/
 
 # Create a simple .env.local file for build.sh
 RUN echo "PYTHON_BIN=python" > /app/.env.local
+
+# Install build-essential separately to manage space better
+RUN apt-get update -o Acquire::AllowInsecureRepositories=true \
+    -o Acquire::AllowDowngradeToInsecureRepositories=true \
+    && apt-get install -y -o APT::Get::AllowUnauthenticated=true \
+    --no-install-recommends \
+    build-essential \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Modify build.sh to skip virtual environment creation
 RUN sed -i 's/python -m venv .venv/echo "Skipping venv creation in Docker"/' /app/scripts/build.sh && \
@@ -43,13 +44,18 @@ RUN sed -i 's/python -m venv .venv/echo "Skipping venv creation in Docker"/' /ap
 # Run the build script to install dependencies
 RUN cd /app && ./scripts/build.sh
 
-# Clean up the source files now that dependencies are installed
-# When we run the container, we'll mount the actual source code
-RUN rm -rf /app/* /app/.??*
+# Install remaining dependencies after Python packages are installed
+RUN apt-get update -o Acquire::AllowInsecureRepositories=true \
+    -o Acquire::AllowDowngradeToInsecureRepositories=true \
+    && apt-get install -y -o APT::Get::AllowUnauthenticated=true \
+    --no-install-recommends \
+    xvfb \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libxcb-xinerama0 \
+    libxkbcommon-x11-0 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Note: This Docker image doesn't contain the lume executable (macOS-specific)
-# Instead, it relies on connecting to a lume server running on the host machine
-# via host.docker.internal:7777
-
-# Default command
-CMD ["bash"] 
+# Default command - start all services
+CMD ["/bin/bash", "-c", "Xvfb :99 -screen 0 1024x768x24 & export DISPLAY=:99 && python -m computer.server --port 8006 & python -m mcp_server & python -m agent.ui.gradio.app --server-port 7860 --server-name 0.0.0.0"]

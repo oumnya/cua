@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  cua-server:
+    build: .
+    container_name: cua-server
+    ports:
+      - "8006:8006"     # Computer server WebSocket
+      - "7777:7777"     # Lume server port (if using)
+      - "5900:5900"     # VNC server (optional)
+    environment:
+      - PYTHONPATH=/app/libs/core:/app/libs/computer:/app/libs/agent:/app/libs/som:/app/libs/pylume:/app/libs/computer-server:/app/libs/mcp-server
+      # Add your API keys here or use .env file
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      # Display settings for headless operation
+      - DISPLAY=:99
+    volumes:
+      - ./:/app                          # Mount source code
+      - ./storage:/storage               # Persistent storage
+      - ./shared:/shared                 # Shared files
+    command: |
+      bash -c "
+        # Start virtual display for headless GUI
+        Xvfb :99 -screen 0 1024x768x24 &
+        # Start Computer Server
+        python -m computer.server --port 8006 &
+        # Keep container running
+        sleep infinity
+      "
+    networks:
+      - cua-network
+
+  cua-ui:
+    build: .
+    container_name: cua-ui
+    ports:
+      - "7860:7860"     # Gradio UI
+    environment:
+      - PYTHONPATH=/app/libs/core:/app/libs/computer:/app/libs/agent:/app/libs/som:/app/libs/pylume:/app/libs/computer-server:/app/libs/mcp-server
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    volumes:
+      - ./:/app
+    command: python -m agent.ui.gradio.app --server-port 7860 --server-name 0.0.0.0
+    depends_on:
+      - cua-server
+    networks:
+      - cua-network
+
+  # MCP Server for Claude Desktop integration
+  mcp-server:
+    build: .
+    container_name: cua-mcp-server
+    environment:
+      - PYTHONPATH=/app/libs/core:/app/libs/computer:/app/libs/agent:/app/libs/som:/app/libs/pylume:/app/libs/computer-server:/app/libs/mcp-server
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    volumes:
+      - ./:/app
+    # MCP server uses stdio for communication, so we keep it simple
+    stdin_open: true
+    tty: true
+    command: python -m mcp_server
+    networks:
+      - cua-network
+
+networks:
+  cua-network:
+    driver: bridge
