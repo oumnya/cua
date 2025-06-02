@@ -58,4 +58,4 @@ RUN apt-get update -o Acquire::AllowInsecureRepositories=true \
     && rm -rf /var/lib/apt/lists/*
 
 # Default command - start all services
-CMD ["/bin/bash", "-c", "Xvfb :99 -screen 0 1024x768x24 & export DISPLAY=:99 && python -m computer.server --port 8006 & python -m mcp_server & python -m agent.ui.gradio.app --server-port 7860 --server-name 0.0.0.0"]
+CMD ["/bin/bash", "-c", "Xvfb :99 -screen 0 1024x768x24 & export DISPLAY=:99 && python -m computer_server --port 8006 & python -m mcp_server & python -m agent.ui.gradio.app --server-port 7860 --server-name 0.0.0.0"]
