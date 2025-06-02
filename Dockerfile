@@ -44,6 +44,9 @@ RUN sed -i 's/python -m venv .venv/echo "Skipping venv creation in Docker"/' /ap
 # Run the build script to install dependencies
 RUN cd /app && ./scripts/build.sh
 
+# Expose ports
+EXPOSE 7860 8006 5900
+
 # Install remaining dependencies after Python packages are installed
 RUN apt-get update -o Acquire::AllowInsecureRepositories=true \
     -o Acquire::AllowDowngradeToInsecureRepositories=true \
@@ -56,6 +59,10 @@ RUN apt-get update -o Acquire::AllowInsecureRepositories=true \
     libxkbcommon-x11-0 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Set environment variables for Gradio
+ENV GRADIO_SERVER_NAME="0.0.0.0"
+ENV GRADIO_SERVER_PORT="7860"
 
 # Default command - start all services
 CMD ["/bin/bash", "-c", "Xvfb :99 -screen 0 1024x768x24 & export DISPLAY=:99 && python -m computer_server --port 8006 & python -m mcp_server & python -m agent.ui.gradio.app --server-port 7860 --server-name 0.0.0.0"]
